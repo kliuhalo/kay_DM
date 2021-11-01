@@ -7,9 +7,19 @@ from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 import time
 
+
 # TDB = [[1,3,4],[2,3,5],[1,2,3,5],[2,5]]
 global_L=[]
 global_freq = []
+
+def import_data_test():
+    path = os.path.join(os.path.dirname(__file__),'ibm-2021.txt')
+    database = open(path,'r')
+    list_dict = {}
+    list_dict = defaultdict(list)
+    for i in database:
+        list_dict[int(i.split()[1])].append(int(i.split()[2]))
+    return list_dict
 
 def import_data1():
     path = os.path.join(os.path.dirname(__file__),'Groceries_dataset.csv')
@@ -68,7 +78,7 @@ def import_data():
     return_dict = {}
     for num, item in enumerate(itemlist):
         return_dict[num] = item
-    #print(return_dict)
+    print(return_dict)
     return return_dict
 
 def itemlist1(TDB):   #C1
@@ -111,23 +121,18 @@ def get_L(itemsetlst,TDB,k, min_sup): #[2,3,5]
         else:
             #print('------',itemsetlst) # [[1, 2], [1, 3], [1, 5], [2, 3], [2, 5], [3, 5]]
             for j in range(len(itemsetlst)):#[{1,2},{3,4}]
-                # for item in itemsetlst[j]:
-                #     print(item)
-                    #print('111111',set(item))
                 if (row_set.union(set(itemsetlst[j])))==row_set:
                     if (row_set.intersection(set(itemsetlst[j])))==set(itemsetlst[j]):
                         freq1[j]+=1
     out = []
     freq = []
-    #min_sup = 70
-    #print(itemsetlst)
     for cnt in range(len(freq1)):
         support = freq1[cnt]
-        # print(support)
         if support >= min_sup :
+            # print(support)
+            # print(min_sup)
             out.append(itemsetlst[cnt])
             freq.append(freq1[cnt])
-            #print('here',itemsetlst[cnt])
     
     return out,freq
 
@@ -169,7 +174,7 @@ def powerset(s):
     else:     
         return chain.from_iterable(combinations(s, r) for r in range(0, len(s)+1))
 
-def rule_gen(global_L,global_freq,minConf=0.1):
+def rule_gen(global_L,global_freq,TDB,minConf=0.1):
     D = dict()
     ans = []
     for i,item in enumerate(global_L):
@@ -183,7 +188,7 @@ def rule_gen(global_L,global_freq,minConf=0.1):
                 print(type(item))
                 exit()
     # print(global_L,global_freq)
-    print("D: ", D)
+    # print("D: ", D)
     for item in D:
         l = []
         if(str(type(item).__name__))=="int":
@@ -206,12 +211,15 @@ def rule_gen(global_L,global_freq,minConf=0.1):
                 continue
             if len(s)==1:
                 confidence = float(D[item]/D[s[0]])
+                support = float(D[item]/len(TDB))
             else:
                 try:
                     if(str(type(s).__name__))=="int":
                         confidence = float(D[item]/D[s])
+                        support = float(D[item]/len(TDB))
                     else:
                         confidence = float(D[item]/D[tuple(sorted(s))])
+                        support = float(D[item]/len(TDB))
                 except Exception as e:
                     print(item)
                     print(s)
@@ -221,45 +229,45 @@ def rule_gen(global_L,global_freq,minConf=0.1):
             if(confidence > minConf):
                 st = set()
                 st = st.union(s)
-                ans.append([st, set(set(l).difference(st)), confidence])
+                ans.append([st, set(set(l).difference(st)), confidence, support])
     
     return ans
         
 if __name__ == "__main__":
     #import_data()
-    start = time.time()
-    TDB = import_data()
+    time_dict = defaultdict()
+    TDB = import_data_test()
     TDB = list(TDB.values())
-
-    #print(TDB)
-
+    #for minsup in [60,100,200]:#70,80,90,100,200, 400, 600]:
+    #    m = [0.1,0.2,0.3,0.4,0.5]
+    #for minConf in m:
+    minsup=100
+    minConf=0.3
+    global_L = []
+    global_freq = []
+    count = 0
+    start = time.time()
     itemsetlst = itemlist1(TDB) #C1 = [1,2,3,4,5]
-    # print(itemsetlst)
     k = 1
-    L,freqlist=get_L(itemsetlst,TDB,k)  #L=[1,2,3,5] ,freq1 = [2,3,3,1,3]->[2,3,3,3]
-    # print("L: ", L)
-    # print("freq: ", freqlist)
+    L,freqlist=get_L(itemsetlst,TDB,k,minsup)  #L=[1,2,3,5] ,freq1 = [2,3,3,1,3]->[2,3,3,3]
+    
     cur_L=L
-
+    
+    #print(TDB)
     for item in L:
         global_L.append(item)
-        
     for freq in freqlist:
         global_freq.append(freq)
 
     k+=1
-    # C2=get_C2(L,k)
-    # print('C2::',C2)
-    # L, freqlist = get_L(C2,TDB,k)
-    # print(L, freqlist)
-    
     cur_L = []
+    
     while True:
-        print(k)
+        # print(k)
         C2=get_C2(L,k) #[[1, 2], [1, 3], [1, 5], [2, 3], [2, 5], [3, 5]]
         # print('C2: ', C2) #[2,3,5]
-        L, freqlist = get_L(C2,TDB,k, 70)
-         
+        L, freqlist = get_L(C2,TDB,k,minsup)
+        
         if not len(L):
             break
         
@@ -271,13 +279,24 @@ if __name__ == "__main__":
             global_freq.append(freq)
         k+=1
         cur_L = L
-    print("global L: ", global_L)
-    print("global freq: ", global_freq)
-    ans = rule_gen(global_L,global_freq)  
+    # print("global freq: ", global_freq)
+    ans = rule_gen(global_L,global_freq,TDB,0.3)  
     # print("ans: ", ans)  
     
     for i in ans:
         if len(i[1]):
-            print(i[0], " implies ", i[1], ", confidence: ", i[2])
+            count+=1
+            print("Relation rules: {",i[0],'->',i[1],'}')
+            print('Support',i[3])
+            print('confidence',i[2])
+            print(' ')
 
     print("Total Time: ", time.time()-start, " sec")
+
+    # print('minsup',minsup)
+    # print('minconf',minConf)
+    # print("num: ", count)
+    time_dict[minsup] = time.time()-start
+    print(" ")
+    
+#print(time_dict)
